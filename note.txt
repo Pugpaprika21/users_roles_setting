@@ -1,0 +1,16 @@
+/**
+ * @param mysqli|null $db
+ * @param enum $status
+ * @param integer $id
+ * @return array|null
+ */
+function find_one_user(?mysqli $db, Status $status, int $id): ?array {
+    try {
+        $stmt = "SELECT * FROM users WHERE status = ? AND id = ?";
+        $user = $db->execute_query($stmt, [$status::IS_ACTIVE, $id])->fetch_array(MYSQLI_ASSOC);
+        return $user;
+    } catch (Exception $e) {
+        error_log($e->getMessage());
+        exit;
+    }
+}
