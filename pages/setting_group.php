@@ -1,15 +1,4 @@
-<?php
-
-include_once __DIR__ . "../../configs/includes.php";
-
-$userId = $_GET["user_id"] ?? 0;
-$userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setting WHERE group_id IN(1, 2) AND user_id = ?", [$userId]);
-
-// $userInGroups = $db->selectAll("SELECT * FROM users_group_setting WHERE user_id = ?", [$userId]);
-// dd($userInGroups);
-
-
-?>
+<?php include_once __DIR__ . "../../configs/includes.php"; ?>
 
 <!doctype html>
 <html lang="en">
@@ -29,8 +18,11 @@ $userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setti
             <form action="../proceed/save_group.php" method="POST" id="handler-group-submit">
                 <input type="hidden" name="user_id" value="<?php echo $userId; ?>">
                 <?php
+
+                $userId = $_GET["user_id"] ?? 0;
+                $userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setting WHERE user_id = ?", [$userId]);
+
                 if ($userGroup["has_group"] > 0) {
-                    $html = "<input type=\"hidden\" id=\"set_group\" name=\"set_group\" value=\"Y\">";
                     $groupRows = $db->selectAll("
                         SELECT DISTINCT ug.id, ug.group_name, CASE WHEN ugs.user_id IS NOT NULL THEN TRUE ELSE FALSE END AS has_in_group
                         FROM users_group AS ug
@@ -38,15 +30,19 @@ $userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setti
                         ORDER BY ug.created_at DESC
                     ", [$userId]);
                 } else {
-                    $html = "<input type=\"hidden\" id=\"set_group\" name=\"set_group\" value=\"N\">";
                     $groupRows = $db->selectAll("SELECT id, group_name FROM users_group ORDER BY created_at DESC");
                 }
-
-                echo $html;
 
                 $db->close();
 
                 ?>
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" value="" id="select_all">
+                    <label class="form-check-label" for="select_all">
+                        <span id="checked-all-text">เลือก</span>
+                    </label>
+                </div>
 
                 <?php foreach ($groupRows as $group) { ?>
                     <div class="form-check">
@@ -57,7 +53,11 @@ $userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setti
                     </div>
                 <?php } ?>
 
-                <button type="submit" class="btn btn-primary mt-3">Submit</button>
+                <button type="submit" class="btn btn-primary btn-sm mt-3" id="btn-set-group">
+                    <div class="spinner-border spinner-border-sm spinner-check" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div> <span id="btn-submit-text">บันทึก</span> 
+                </button>
             </form>
         </div>
     </div>
@@ -66,16 +66,11 @@ $userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setti
     <SCript src="https://code.jquery.com/jquery-3.7.1.js"></script>
     <script>
         $(document).ready(function() {
-            var checkedVals = [];
-            var uncheckedVals = [];
+            let checkedVals = [];
+            let uncheckedVals = [];
+            let checkedAllAlert = "";
 
-            $("input[type=checkbox]").each(function() {
-                handlerSetGroupChecked.call(this);
-            });
-
-            $("input[type=checkbox]").change(function() {
-                handlerSetGroupChecked.call(this);
-            });
+            $(".spinner-check").hide();
 
             function handlerSetGroupChecked() {
                 let isChecked = $(this).prop("checked");
@@ -87,6 +82,7 @@ $userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setti
                     if (index !== -1) {
                         uncheckedVals.splice(index, 1);
                     }
+                    $("#btn-set-group").attr("disabled", false);
                 } else {
                     let index = checkedVals.indexOf(checkVal);
                     if (index !== -1) {
@@ -99,26 +95,78 @@ $userGroup = $db->selectRow("SELECT COUNT(1) AS has_group FROM users_group_setti
                 }
             }
 
+            $("input[name='user_groups[]']").each(function() {
+                handlerSetGroupChecked.call(this);
+            });
+
+            $("input[name='user_groups[]']").change(function() {
+                handlerSetGroupChecked.call(this);
+            });
+
+            $("#select_all").change(function() {
+                let isChecked = $(this).prop("checked");
+                if (isChecked) {
+                    checkedAllAlert = "N";
+                    $("#checked-all-text").text("เลือกทั้งหมด");
+                    $("#btn-submit-text").text("บันทึกสิทธิ์");
+                    $("#btn-set-group").removeClass().addClass("btn btn-primary btn-sm mt-3");
+                } else {
+                    checkedAllAlert = "Y";
+                    $("#checked-all-text").text("ลบทั้งหมด");
+                    $("#btn-submit-text").text("ลบสิทธิ์ทั้งหมด");
+                    $("#btn-set-group").removeClass().addClass("btn btn-danger btn-sm mt-3");
+                }
+
+                $("input[name='user_groups[]']").prop("checked", isChecked).each(function() {
+                    handlerSetGroupChecked.call(this);
+                });
+                $("#btn-set-group").attr("disabled", false);
+            });
+
             $("#handler-group-submit").submit(function(e) {
                 e.preventDefault();
-                $.ajax({
-                    type: "POST",
-                    url: "../proceed/save_group.php",
-                    data: {
-                        action: "set_groups",
-                        user_id: "<?php echo $userId; ?>",
-                        user_groups: {
-                            in_group: checkedVals,
-                            not_in_group: uncheckedVals
+
+                if (checkedVals.length == 0) {
+                    alert("pleace select user group");
+                    $("#btn-set-group").attr("disabled", true);
+                    return;
+                }
+
+                if (checkedAllAlert == "Y") {
+                    alert("ต้องการลบ user groups หรือไม่");
+                }
+
+                $(".spinner-check").show();
+                $("#btn-set-group").attr("disabled", false);
+
+                setTimeout(() => {
+                    $.ajax({
+                        type: "POST",
+                        url: "../proceed/save_group.php",
+                        data: {
+                            action: "set_groups",
+                            user_id: "<?php echo $userId; ?>",
+                            user_groups: {
+                                in_group: checkedVals,
+                                not_in_group: uncheckedVals,
+                                has_group: "<?php echo ($userGroup['has_group'] > 0) ? $userGroup['has_group'] : 0; ?>"
+                            },
                         },
-                    },
-                    dataType: "json",
-                    success: function(resp) {
-                        if (resp.status_bool) {
-                            window.location.href = resp.self_url;
+                        dataType: "json",
+                        success: function(resp) {
+                            if (resp.status_bool) {
+                                window.location.href = resp.self_url;
+                            } else {
+                                $("#btn-set-group").prop("disabled", false);
+                                $(".spinner-check").hide();
+                            }
+                        },
+                        error: function() {
+                            $("#btn-set-group").prop("disabled", false);
+                            $(".spinner-check").hide();
                         }
-                    }
-                });
+                    });
+                }, 2000);
             });
         });
     </script>
