@@ -16,7 +16,6 @@
         <h1 class="mb-4">Select User Groups</h1>
         <div class="form-group-setting">
             <form action="../proceed/save_group.php" method="POST" id="handler-group-submit">
-                <input type="hidden" name="user_id" value="<?php echo $userId; ?>">
                 <?php
 
                 $userId = $_GET["user_id"] ?? 0;
@@ -37,6 +36,8 @@
 
                 ?>
 
+                <input type="hidden" name="user_id" value="<?php echo $userId; ?>">
+
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" value="" id="select_all">
                     <label class="form-check-label" for="select_all">
@@ -56,7 +57,7 @@
                 <button type="submit" class="btn btn-primary btn-sm mt-3" id="btn-set-group">
                     <div class="spinner-border spinner-border-sm spinner-check" role="status">
                         <span class="visually-hidden">Loading...</span>
-                    </div> <span id="btn-submit-text">บันทึก</span> 
+                    </div> <span id="btn-submit-text">บันทึก</span>
                 </button>
             </form>
         </div>
@@ -71,7 +72,6 @@
             let checkedAllAlert = "";
 
             $(".spinner-check").hide();
-
             function handlerSetGroupChecked() {
                 let isChecked = $(this).prop("checked");
                 let checkVal = $(this).val();
